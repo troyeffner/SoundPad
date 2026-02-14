@@ -214,39 +214,26 @@ export function AudioProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const loadData = async () => {
-      const savedData = await loadFromLocalStorage()
+      // Clear all saved recordings on this deploy
+      localStorage.removeItem(STORAGE_KEY)
+      localStorage.removeItem(ORDER_STORAGE_KEY)
 
       const updatedData: Record<string, AudioData> = {}
 
-      // Create default data for all 36 tiles
+      // Create fresh default data for all 36 tiles with no recordings
       for (let i = 1; i <= 36; i++) {
         const id = i.toString()
-        const existingData = savedData[id]
         const meditationConfig = meditationPads[id]
 
         updatedData[id] = {
           id,
-          name: meditationConfig?.name || existingData?.name || `Pad ${id}`,
-          speed: existingData?.speed || 1,
-          balance: meditationConfig?.balance !== undefined ? meditationConfig.balance : existingData?.balance || 0,
-          echoDelay:
-            meditationConfig?.echoDelay !== undefined
-              ? meditationConfig.echoDelay
-              : existingData?.echoDelay !== undefined
-                ? existingData.echoDelay
-                : 0.1,
-          echoFeedback:
-            meditationConfig?.echoFeedback !== undefined
-              ? meditationConfig.echoFeedback
-              : existingData?.echoFeedback || 0,
-          volume:
-            meditationConfig?.volume !== undefined
-              ? meditationConfig.volume
-              : existingData?.volume !== undefined
-                ? existingData.volume
-                : 0.75,
-          color: meditationConfig?.color || existingData?.color,
-          audioBlob: existingData?.audioBlob,
+          name: meditationConfig?.name || `Pad ${id}`,
+          speed: 1,
+          balance: meditationConfig?.balance ?? 0,
+          echoDelay: meditationConfig?.echoDelay ?? 0.1,
+          echoFeedback: meditationConfig?.echoFeedback ?? 0,
+          volume: meditationConfig?.volume ?? 0.75,
+          color: meditationConfig?.color,
         }
       }
 
