@@ -214,26 +214,26 @@ export function AudioProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const loadData = async () => {
-      // Clear all saved recordings on this deploy
-      localStorage.removeItem(STORAGE_KEY)
-      localStorage.removeItem(ORDER_STORAGE_KEY)
+      const savedData = await loadFromLocalStorage()
+      const hasSavedData = Object.keys(savedData).length > 0
 
       const updatedData: Record<string, AudioData> = {}
 
-      // Create fresh default data for all 36 tiles with no recordings
       for (let i = 1; i <= 36; i++) {
         const id = i.toString()
         const meditationConfig = meditationPads[id]
+        const existingData = hasSavedData ? savedData[id] : undefined
 
         updatedData[id] = {
           id,
-          name: meditationConfig?.name || `Pad ${id}`,
-          speed: 1,
-          balance: meditationConfig?.balance ?? 0,
-          echoDelay: meditationConfig?.echoDelay ?? 0.1,
-          echoFeedback: meditationConfig?.echoFeedback ?? 0,
-          volume: meditationConfig?.volume ?? 0.75,
-          color: meditationConfig?.color,
+          name: existingData?.name || meditationConfig?.name || `Pad ${id}`,
+          speed: existingData?.speed || 1,
+          balance: existingData?.balance ?? meditationConfig?.balance ?? 0,
+          echoDelay: existingData?.echoDelay ?? meditationConfig?.echoDelay ?? 0.1,
+          echoFeedback: existingData?.echoFeedback ?? meditationConfig?.echoFeedback ?? 0,
+          volume: existingData?.volume ?? meditationConfig?.volume ?? 0.75,
+          color: existingData?.color || meditationConfig?.color,
+          audioBlob: existingData?.audioBlob,
         }
       }
 
