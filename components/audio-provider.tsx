@@ -215,37 +215,24 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const loadData = async () => {
       const savedData = await loadFromLocalStorage()
+      const hasSavedData = Object.keys(savedData).length > 0
 
       const updatedData: Record<string, AudioData> = {}
 
-      // Create default data for all 36 tiles
       for (let i = 1; i <= 36; i++) {
         const id = i.toString()
-        const existingData = savedData[id]
         const meditationConfig = meditationPads[id]
+        const existingData = hasSavedData ? savedData[id] : undefined
 
         updatedData[id] = {
           id,
-          name: meditationConfig?.name || existingData?.name || `Pad ${id}`,
+          name: existingData?.name || meditationConfig?.name || `Pad ${id}`,
           speed: existingData?.speed || 1,
-          balance: meditationConfig?.balance !== undefined ? meditationConfig.balance : existingData?.balance || 0,
-          echoDelay:
-            meditationConfig?.echoDelay !== undefined
-              ? meditationConfig.echoDelay
-              : existingData?.echoDelay !== undefined
-                ? existingData.echoDelay
-                : 0.1,
-          echoFeedback:
-            meditationConfig?.echoFeedback !== undefined
-              ? meditationConfig.echoFeedback
-              : existingData?.echoFeedback || 0,
-          volume:
-            meditationConfig?.volume !== undefined
-              ? meditationConfig.volume
-              : existingData?.volume !== undefined
-                ? existingData.volume
-                : 0.75,
-          color: meditationConfig?.color || existingData?.color,
+          balance: existingData?.balance ?? meditationConfig?.balance ?? 0,
+          echoDelay: existingData?.echoDelay ?? meditationConfig?.echoDelay ?? 0.1,
+          echoFeedback: existingData?.echoFeedback ?? meditationConfig?.echoFeedback ?? 0,
+          volume: existingData?.volume ?? meditationConfig?.volume ?? 0.75,
+          color: existingData?.color || meditationConfig?.color,
           audioBlob: existingData?.audioBlob,
         }
       }
