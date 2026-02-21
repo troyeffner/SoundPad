@@ -82,8 +82,8 @@ export function SoundPadGrid() {
         ))}
       </div>
 
-      {/* Desktop: 6x6 grid with no gaps */}
-      <div className="hidden md:grid md:grid-cols-6 md:gap-0 max-w-3xl mx-auto">
+      {/* Desktop: 6x6 grid */}
+      <div className="hidden md:grid md:grid-cols-6 md:gap-2 max-w-4xl mx-auto">
         {buttonOrder.map((buttonId, index) => (
           <div
             key={buttonId}

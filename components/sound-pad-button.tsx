@@ -76,7 +76,7 @@ export function SoundPadButton({ id, defaultColor, isEditMode, index, isMobile =
 
   return (
     <>
-      <div className={cn("relative", isMobile ? "w-16 h-16" : "w-24 h-24")}>
+      <div className={cn("relative", isMobile ? "w-16 h-16" : "w-28 h-28")}>
         <Button
           onClick={handleClick}
           className={cn(

@@ -427,7 +427,8 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     const needsWebAudio =
       data.balance !== 0 || (data.volume || 1) > 1 || ((data.echoDelay || 0) > 0 && (data.echoFeedback || 0) > 0)
 
-    const hasEcho = (data.echoDelay || 0) > 0 && (data.echoFeedback || 0) > 0
+    // Disable echo when loop is enabled — echo path doesn't support looping
+    const hasEcho = !data.loop && (data.echoDelay || 0) > 0 && (data.echoFeedback || 0) > 0
 
     if (hasEcho) {
       const echoCount = Math.min(Math.floor((data.echoFeedback || 0) * 6) + 3, 6)
