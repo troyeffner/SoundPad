@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Edit3, Play, Square } from "lucide-react"
+import { Edit3, Play, Square, Repeat } from "lucide-react"
 import { useAudio } from "./audio-provider"
 import { AudioEditModal } from "./audio-edit-modal"
 import { cn } from "@/lib/utils"
@@ -22,17 +22,13 @@ export function SoundPadButton({ id, defaultColor, isEditMode, index, isMobile =
   const { audioData, playAudio, isPlaying } = useAudio()
 
   const data = audioData[id]
-  const hasAudio = !!(data?.audioBlob || data?.audioUrl)
+  const hasAudio = !!data?.audioBlob
   const playing = isPlaying[id]
   const buttonColor = data?.color || defaultColor || "slate"
 
   const handleClick = () => {
-    console.log("[v0] Button clicked - id:", id, "hasAudio:", hasAudio, "isEditMode:", isEditMode)
     if (hasAudio && !isEditMode) {
-      console.log("[v0] Calling playAudio for id:", id)
       playAudio(id)
-    } else {
-      console.log("[v0] Not calling playAudio - hasAudio:", hasAudio, "isEditMode:", isEditMode)
     }
   }
 
@@ -89,12 +85,9 @@ export function SoundPadButton({ id, defaultColor, isEditMode, index, isMobile =
               ? getColorClasses(buttonColor, hasAudio, playing)
               : "bg-muted hover:bg-muted/80 text-muted-foreground border-2 border-border",
             !hasAudio && "border-2 border-border",
-            isEditMode && "animate-pulse cursor-move",
+            isEditMode && "wiggle cursor-move",
           )}
           disabled={!hasAudio && !isEditMode}
-          style={{
-            animation: isEditMode ? "wiggle 0.5s ease-in-out infinite alternate" : undefined,
-          }}
         >
           <div className="flex flex-col items-center justify-center gap-1">
             {playing ? (
@@ -125,6 +118,16 @@ export function SoundPadButton({ id, defaultColor, isEditMode, index, isMobile =
         >
           <Edit3 className={cn(isMobile ? "w-2 h-2" : "w-2.5 h-2.5")} />
         </button>
+
+        {data?.loop && (
+          <div className={cn(
+            "absolute bottom-1 left-1 rounded-full z-10 pointer-events-none",
+            "flex items-center justify-center",
+            isMobile ? "w-3 h-3" : "w-4 h-4",
+          )}>
+            <Repeat className={cn("text-current opacity-60", isMobile ? "w-2 h-2" : "w-2.5 h-2.5")} />
+          </div>
+        )}
       </div>
 
       <AudioEditModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} padId={id} currentData={data} />

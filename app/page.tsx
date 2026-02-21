@@ -4,9 +4,34 @@ import type React from "react"
 
 import { AudioProvider, useAudio } from "@/components/audio-provider"
 import { Button } from "@/components/ui/button"
-import { Download, Upload } from "lucide-react"
+import { Download, Upload, MonitorSpeaker } from "lucide-react"
 import { useState, useRef } from "react"
+import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+
+function OutputDeviceSelector() {
+  const { availableOutputDevices, outputDeviceId, setOutputDeviceId } = useAudio()
+
+  if (availableOutputDevices.length <= 1) return null
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <MonitorSpeaker className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+      <select
+        value={outputDeviceId}
+        onChange={e => setOutputDeviceId(e.target.value)}
+        className="text-xs bg-transparent border border-border rounded px-1.5 py-1 text-foreground max-w-[140px] truncate cursor-pointer"
+      >
+        <option value="">Default</option>
+        {availableOutputDevices.map(d => (
+          <option key={d.deviceId} value={d.deviceId}>
+            {d.label || `Output ${d.deviceId.slice(0, 6)}`}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
+}
 
 function ExportImportButtons() {
   const { exportData, importData } = useAudio()
@@ -39,7 +64,7 @@ function ExportImportButtons() {
       setTimeout(() => setIsImporting(false), 1000)
     } catch (error) {
       console.error("Import failed:", error)
-      alert("Failed to import data. Please make sure you selected a valid sound pad mixer export file.")
+      toast.error("Import failed — please select a valid sound pad export file.")
       setIsImporting(false)
     }
 
@@ -88,7 +113,9 @@ export default function Home() {
         <div className="max-w-4xl mx-auto">
           <header className="text-center mb-8">
             <div className="flex justify-between items-start mb-4">
-              <div className="flex-1" />
+              <div className="flex-1 flex items-start pt-1">
+                <OutputDeviceSelector />
+              </div>
               <div className="flex-1 text-center">
                 <h1 className="text-3xl font-bold text-foreground mb-2">Sound Pad Mixer</h1>
                 <p className="text-muted-foreground">Professional audio mixing interface</p>

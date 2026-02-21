@@ -1,8 +1,8 @@
 "use client"
 
 import { createContext, useContext, useState, useRef, useEffect, type ReactNode } from "react"
-import type { StereoPannerNode, GainNode } from "standardized-audio-context"
 import JSZip from "jszip"
+import { toast } from "sonner"
 import { meditationPads } from "@/scripts/update-meditation-pads"
 
 interface AudioData {
@@ -15,6 +15,7 @@ interface AudioData {
   echoFeedback?: number
   volume?: number
   color?: string
+  loop?: boolean
 }
 
 interface SerializedAudioData {
@@ -27,6 +28,7 @@ interface SerializedAudioData {
   echoFeedback?: number
   volume?: number
   color?: string
+  loop?: boolean
 }
 
 interface AudioContextType {
@@ -41,6 +43,9 @@ interface AudioContextType {
   setIsEditMode: (editMode: boolean) => void
   buttonOrder: string[]
   reorderButtons: (fromIndex: number, toIndex: number) => void
+  outputDeviceId: string
+  setOutputDeviceId: (id: string) => void
+  availableOutputDevices: MediaDeviceInfo[]
 }
 
 const AudioContext = createContext<AudioContextType | undefined>(undefined)
@@ -62,6 +67,7 @@ const saveToLocalStorage = async (audioData: Record<string, AudioData>) => {
         echoFeedback: data.echoFeedback,
         volume: data.volume,
         color: data.color,
+        loop: data.loop,
       }
 
       if (data.audioBlob) {
@@ -78,7 +84,6 @@ const saveToLocalStorage = async (audioData: Record<string, AudioData>) => {
     }
 
     localStorage.setItem(STORAGE_KEY, JSON.stringify(serializedData))
-    console.log("[v0] Saved audio data to localStorage")
   } catch (error) {
     console.error("Error saving to localStorage:", error)
   }
@@ -102,6 +107,7 @@ const loadFromLocalStorage = async (): Promise<Record<string, AudioData>> => {
         echoFeedback: data.echoFeedback,
         volume: data.volume,
         color: data.color,
+        loop: data.loop,
       }
 
       if (data.audioDataUrl) {
@@ -113,7 +119,6 @@ const loadFromLocalStorage = async (): Promise<Record<string, AudioData>> => {
       audioData[id] = audioItem
     }
 
-    console.log("[v0] Loaded audio data from localStorage")
     return audioData
   } catch (error) {
     console.error("Error loading from localStorage:", error)
@@ -126,6 +131,13 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   const [isPlaying, setIsPlaying] = useState<Record<string, boolean>>({})
   const [isEditMode, setIsEditMode] = useState(false)
   const [buttonOrder, setButtonOrder] = useState<string[]>(Array.from({ length: 36 }, (_, i) => (i + 1).toString()))
+  const [outputDeviceId, setOutputDeviceIdState] = useState<string>('')
+  const [availableOutputDevices, setAvailableOutputDevices] = useState<MediaDeviceInfo[]>([])
+
+  const setOutputDeviceId = (deviceId: string) => {
+    setOutputDeviceIdState(deviceId)
+    localStorage.setItem('sound-pad-mixer-output-device', deviceId)
+  }
   const audioInstancesRefs = useRef<Record<string, HTMLAudioElement[]>>({})
   const audioContextRef = useRef<AudioContext | null>(null)
   const audioNodesRef = useRef<
@@ -233,6 +245,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
           echoFeedback: existingData?.echoFeedback ?? meditationConfig?.echoFeedback ?? 0,
           volume: existingData?.volume ?? meditationConfig?.volume ?? 0.75,
           color: existingData?.color || meditationConfig?.color,
+          loop: existingData?.loop,
           audioBlob: existingData?.audioBlob,
         }
       }
@@ -266,6 +279,22 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         audioContextRef.current.close()
       }
     }
+  }, [])
+
+  useEffect(() => {
+    // Load persisted output device
+    const savedDevice = localStorage.getItem('sound-pad-mixer-output-device')
+    if (savedDevice) setOutputDeviceIdState(savedDevice)
+
+    // Enumerate audio output devices
+    const refreshDevices = async () => {
+      if (!navigator.mediaDevices?.enumerateDevices) return
+      const devices = await navigator.mediaDevices.enumerateDevices()
+      setAvailableOutputDevices(devices.filter(d => d.kind === 'audiooutput'))
+    }
+    refreshDevices()
+    navigator.mediaDevices?.addEventListener('devicechange', refreshDevices)
+    return () => navigator.mediaDevices?.removeEventListener('devicechange', refreshDevices)
   }, [])
 
   useEffect(() => {
@@ -307,6 +336,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
           echoFeedback: data.echoFeedback !== undefined ? data.echoFeedback : prev[id]?.echoFeedback || 0,
           volume: data.volume !== undefined ? data.volume : prev[id]?.volume || 0.75,
           color: data.color !== undefined ? data.color : prev[id]?.color,
+          loop: data.loop !== undefined ? data.loop : prev[id]?.loop,
           audioBlob: data.audioBlob !== undefined ? data.audioBlob : prev[id]?.audioBlob,
         },
       }
@@ -361,20 +391,18 @@ export function AudioProvider({ children }: { children: ReactNode }) {
 
   const playAudio = async (id: string) => {
     const data = audioData[id]
-    console.log(`[v0] playAudio called for id: ${id}, hasData: ${!!data}, hasBlob: ${!!data?.audioBlob}`)
 
-    if (!data?.audioBlob) {
-      console.log(`[v0] No audio data or blob for id: ${id}`)
+    if (!data?.audioBlob) return
+
+    // If loop is enabled and already playing, clicking again stops it
+    if (data.loop && isPlaying[id]) {
+      if (cachedAudioRef.current[id]) {
+        cachedAudioRef.current[id].audio.pause()
+        cachedAudioRef.current[id].audio.currentTime = 0
+      }
+      setIsPlaying(prev => ({ ...prev, [id]: false }))
       return
     }
-
-    console.log(`[v0] Audio settings for id ${id}:`, {
-      echoDelay: data.echoDelay,
-      echoFeedback: data.echoFeedback,
-      volume: data.volume,
-      balance: data.balance,
-      speed: data.speed,
-    })
 
     limitAudioInstances(id)
 
@@ -382,7 +410,6 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       try {
         const AudioContext = window.AudioContext || (window as any).webkitAudioContext
         audioContextRef.current = new AudioContext()
-        console.log(`[v0] Created new AudioContext`)
       } catch (error) {
         console.error("Error creating AudioContext:", error)
         return
@@ -392,7 +419,6 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     if (audioContextRef.current && audioContextRef.current.state === "suspended") {
       try {
         await audioContextRef.current.resume()
-        console.log(`[v0] Resumed AudioContext`)
       } catch (error) {
         console.error("Error resuming AudioContext:", error)
       }
@@ -402,17 +428,17 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       data.balance !== 0 || (data.volume || 1) > 1 || ((data.echoDelay || 0) > 0 && (data.echoFeedback || 0) > 0)
 
     const hasEcho = (data.echoDelay || 0) > 0 && (data.echoFeedback || 0) > 0
-    console.log(`[v0] needsWebAudio: ${needsWebAudio}, hasEcho: ${hasEcho}`)
 
     if (hasEcho) {
-      console.log(`[v0] Applying echo effect with delay: ${data.echoDelay}, feedback: ${data.echoFeedback}`)
       const echoCount = Math.min(Math.floor((data.echoFeedback || 0) * 6) + 3, 6)
       const delayMs = Math.max((data.echoDelay || 0) * 1000, 100)
-      console.log(`[v0] Echo count: ${echoCount}, delay: ${delayMs}ms`)
 
       for (let i = 0; i <= echoCount; i++) {
         const url = URL.createObjectURL(data.audioBlob)
         const echoAudio = new Audio(url)
+        if (outputDeviceId && 'setSinkId' in HTMLAudioElement.prototype) {
+          try { await (echoAudio as any).setSinkId(outputDeviceId) } catch {}
+        }
         resourceCountRef.current.objectUrls++
 
         const delay = i * delayMs
@@ -424,8 +450,6 @@ export function AudioProvider({ children }: { children: ReactNode }) {
           const decayFactor = Math.pow(data.echoFeedback || 0.5, i - 1) // Use feedback as decay rate
           volume = baseEchoVolume * decayFactor
         }
-
-        console.log(`[v0] Echo ${i}: delay=${delay}ms, volume=${volume}`)
 
         echoAudio.playbackRate = data.speed
         echoAudio.volume = Math.min(volume, 1)
@@ -463,7 +487,6 @@ export function AudioProvider({ children }: { children: ReactNode }) {
 
         setTimeout(async () => {
           try {
-            console.log(`[v0] Playing echo ${i} for id: ${id}`)
             await echoAudio.play()
           } catch (error) {
             console.error("Error playing echo audio:", error)
@@ -491,7 +514,6 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       }
 
       setIsPlaying((prev) => ({ ...prev, [id]: true }))
-      console.log(`[v0] Echo effect setup complete for id: ${id}`)
       return
     }
 
@@ -501,7 +523,6 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     if (cachedAudioRef.current[id]) {
       audio = cachedAudioRef.current[id].audio
       audio.currentTime = 0 // Reset to beginning
-      console.log(`[v0] Using cached audio for id: ${id}`)
     } else {
       // Create new cached audio element
       const url = URL.createObjectURL(data.audioBlob)
@@ -509,11 +530,14 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       cachedAudioRef.current[id] = { audio, url }
       isNewAudio = true
       resourceCountRef.current.objectUrls++
-      console.log(`[v0] Created new cached audio for id: ${id}`)
     }
 
     audio.playbackRate = data.speed
     audio.volume = Math.min(data.volume || 1, 1)
+    audio.loop = data.loop || false
+    if (outputDeviceId && 'setSinkId' in HTMLAudioElement.prototype) {
+      try { await (audio as any).setSinkId(outputDeviceId) } catch {}
+    }
 
     if (needsWebAudio && audioContextRef.current && isNewAudio) {
       try {
@@ -593,8 +617,6 @@ export function AudioProvider({ children }: { children: ReactNode }) {
 
   const exportData = async () => {
     try {
-      console.log("[v0] Starting export process...")
-
       const zip = new JSZip()
       let audioFileCount = 0
       let totalPadsWithSettings = 0
@@ -613,6 +635,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
           echoFeedback: data.echoFeedback,
           volume: data.volume,
           color: data.color,
+          loop: data.loop,
           hasAudio: !!data.audioBlob,
         }
 
@@ -620,7 +643,6 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         if (data.audioBlob) {
           zip.file(`pad-${id}.webm`, data.audioBlob)
           audioFileCount++
-          console.log(`[v0] Added audio file for pad ${id} (${(data.audioBlob.size / 1024).toFixed(2)} KB)`)
         }
       }
 
@@ -637,11 +659,8 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       // Add settings.json
       zip.file("settings.json", JSON.stringify(settings, null, 2))
 
-      console.log(`[v0] Export summary: ${audioFileCount} audio files, ${totalPadsWithSettings} pads with settings`)
-
       // Generate zip file
       const blob = await zip.generateAsync({ type: "blob" })
-      console.log(`[v0] Generated zip file: ${(blob.size / 1024).toFixed(2)} KB`)
 
       // Download the file
       const url = URL.createObjectURL(blob)
@@ -653,26 +672,22 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
 
-      console.log("[v0] Exported sound pad mixer data successfully")
-      alert(`Export successful!\n${audioFileCount} audio files exported\n${totalPadsWithSettings} pads with settings`)
+      toast.success(`Exported ${audioFileCount} audio files`)
     } catch (error) {
-      console.error("[v0] Error exporting data:", error)
-      alert(`Export failed: ${error instanceof Error ? error.message : "Unknown error"}`)
+      console.error("Error exporting data:", error)
+      toast.error(`Export failed: ${error instanceof Error ? error.message : "Unknown error"}`)
       throw error
     }
   }
 
   const importData = async (file: File) => {
     try {
-      console.log(`[v0] Starting import process for file: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`)
-
       // Validate file type
       if (!file.name.endsWith(".zip")) {
         throw new Error("Invalid file type. Please select a .zip file.")
       }
 
       const zip = await JSZip.loadAsync(file)
-      console.log(`[v0] Zip file loaded successfully, contains ${Object.keys(zip.files).length} files`)
 
       // Read settings.json
       const settingsFile = zip.file("settings.json")
@@ -688,15 +703,9 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         throw new Error("Invalid settings.json format")
       }
 
-      console.log(`[v0] Settings loaded:`, settings._metadata || "No metadata found")
-
       // Restore button order if it exists
       if (settings._buttonOrder && Array.isArray(settings._buttonOrder)) {
-        if (settings._buttonOrder.length !== 36) {
-          console.warn(`[v0] Button order has ${settings._buttonOrder.length} items, expected 36`)
-        }
         setButtonOrder(settings._buttonOrder)
-        console.log(`[v0] Restored button order`)
       }
 
       // Restore audio data
@@ -720,6 +729,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
             echoFeedback: padSettings.echoFeedback || 0,
             volume: padSettings.volume !== undefined ? padSettings.volume : 0.75,
             color: padSettings.color,
+            loop: padSettings.loop,
           }
 
           // Load audio file if it exists
@@ -729,10 +739,8 @@ export function AudioProvider({ children }: { children: ReactNode }) {
               const audioBlob = await audioFile.async("blob")
               newAudioData[id].audioBlob = audioBlob
               importedAudioCount++
-              console.log(`[v0] Imported audio for pad ${id} (${(audioBlob.size / 1024).toFixed(2)} KB)`)
             } else {
               missingAudioCount++
-              console.warn(`[v0] Audio file missing for pad ${id} (expected in export)`)
             }
           }
         } else {
@@ -748,10 +756,6 @@ export function AudioProvider({ children }: { children: ReactNode }) {
           }
         }
       }
-
-      console.log(
-        `[v0] Import summary: ${importedAudioCount} audio files, ${importedSettingsCount} settings, ${missingAudioCount} missing`,
-      )
 
       // Clear cached audio before setting new data
       Object.values(cachedAudioRef.current).forEach(({ audio, url }) => {
@@ -770,13 +774,10 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       // Save to localStorage
       await saveToLocalStorage(newAudioData)
 
-      console.log("[v0] Imported sound pad mixer data successfully")
-      alert(
-        `Import successful!\n${importedAudioCount} audio files imported\n${importedSettingsCount} pads with settings\n${missingAudioCount > 0 ? `${missingAudioCount} audio files were missing` : ""}`,
-      )
+      toast.success(`Imported ${importedAudioCount} audio files${missingAudioCount > 0 ? ` (${missingAudioCount} missing)` : ''}`)
     } catch (error) {
-      console.error("[v0] Error importing data:", error)
-      alert(`Import failed: ${error instanceof Error ? error.message : "Unknown error"}`)
+      console.error("Error importing data:", error)
+      toast.error(`Import failed: ${error instanceof Error ? error.message : "Unknown error"}`)
       throw error
     }
   }
@@ -827,6 +828,9 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         setIsEditMode,
         buttonOrder,
         reorderButtons,
+        outputDeviceId,
+        setOutputDeviceId,
+        availableOutputDevices,
       }}
     >
       {children}

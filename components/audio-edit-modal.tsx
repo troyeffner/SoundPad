@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Slider } from "@/components/ui/slider"
-import { Mic, Square, Play, Trash2 } from "lucide-react"
+import { Mic, Square, Play, Trash2, Repeat } from "lucide-react"
 import { useAudio } from "./audio-provider"
 
 interface AudioEditModalProps {
@@ -23,6 +23,7 @@ interface AudioEditModalProps {
     echoFeedback?: number
     volume?: number
     color?: string
+    loop?: boolean
   }
 }
 
@@ -36,6 +37,7 @@ export function AudioEditModal({ isOpen, onClose, padId, currentData }: AudioEdi
   const [echoFeedback, setEchoFeedback] = useState(currentData?.echoFeedback || 0)
   const [volume, setVolume] = useState(currentData?.volume || 1)
   const [color, setColor] = useState(currentData?.color || "slate")
+  const [loop, setLoop] = useState(currentData?.loop || false)
   const [audioBlob, setAudioBlob] = useState<Blob | undefined>(currentData?.audioBlob)
   const [isPlaying, setIsPlaying] = useState(false)
 
@@ -52,6 +54,7 @@ export function AudioEditModal({ isOpen, onClose, padId, currentData }: AudioEdi
       setEchoFeedback(currentData?.echoFeedback || 0)
       setVolume(currentData?.volume || 1)
       setColor(currentData?.color || "slate")
+      setLoop(currentData?.loop || false)
       setAudioBlob(currentData?.audioBlob)
     }
   }, [isOpen, currentData, padId])
@@ -91,7 +94,7 @@ export function AudioEditModal({ isOpen, onClose, padId, currentData }: AudioEdi
             return
           }
 
-          console.log(`[v0] Trimming ${((startSample / sampleRate) * 1000).toFixed(0)}ms of leading silence`)
+          console.log(`Trimming ${((startSample / sampleRate) * 1000).toFixed(0)}ms of leading silence`)
 
           // Create new buffer without leading silence
           const trimmedLength = channelData.length - startSample
@@ -109,11 +112,11 @@ export function AudioEditModal({ isOpen, onClose, padId, currentData }: AudioEdi
           // Convert back to blob
           const wavBlob = bufferToWav(trimmedBuffer)
           console.log(
-            `[v0] Successfully trimmed audio from ${(audioBuffer.length / sampleRate).toFixed(2)}s to ${(trimmedBuffer.length / sampleRate).toFixed(2)}s`,
+            `Trimmed audio from ${(audioBuffer.length / sampleRate).toFixed(2)}s to ${(trimmedBuffer.length / sampleRate).toFixed(2)}s`,
           )
           resolve(wavBlob)
         } catch (error) {
-          console.error("[v0] Error trimming silence:", error)
+          console.error("Error trimming silence:", error)
           resolve(audioBlob) // Return original on error
         }
       }
@@ -202,6 +205,7 @@ export function AudioEditModal({ isOpen, onClose, padId, currentData }: AudioEdi
     if (!audioBlob) return
 
     if (audioRef.current) {
+      URL.revokeObjectURL(audioRef.current.src)
       audioRef.current.pause()
       audioRef.current = null
     }
@@ -268,6 +272,7 @@ export function AudioEditModal({ isOpen, onClose, padId, currentData }: AudioEdi
       echoFeedback,
       volume,
       color,
+      loop,
       audioBlob,
     })
     onClose()
@@ -282,6 +287,7 @@ export function AudioEditModal({ isOpen, onClose, padId, currentData }: AudioEdi
       echoFeedback: 0,
       volume: 1,
       color: "slate",
+      loop: false,
       audioBlob: undefined,
     })
     onClose()
@@ -444,7 +450,23 @@ export function AudioEditModal({ isOpen, onClose, padId, currentData }: AudioEdi
             </div>
           )}
 
-          <div className="flex gap-2 pt-4">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="loop-toggle" className="flex items-center gap-2 cursor-pointer">
+              <Repeat className="w-4 h-4 text-muted-foreground" />
+              Loop
+            </Label>
+            <button
+              id="loop-toggle"
+              role="switch"
+              aria-checked={loop}
+              onClick={() => setLoop(!loop)}
+              className={`relative inline-flex h-5 w-9 items-center rounded-full border-2 border-transparent transition-colors ${loop ? "bg-primary" : "bg-input"}`}
+            >
+              <span className={`inline-block h-4 w-4 rounded-full bg-background shadow-sm transition-transform ${loop ? "translate-x-4" : "translate-x-0"}`} />
+            </button>
+          </div>
+
+          <div className="flex gap-2 pt-2">
             <Button onClick={handleSave} className="flex-1">
               Save Changes
             </Button>
