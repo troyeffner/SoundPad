@@ -337,7 +337,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
           volume: data.volume !== undefined ? data.volume : prev[id]?.volume || 0.75,
           color: data.color !== undefined ? data.color : prev[id]?.color,
           loop: data.loop !== undefined ? data.loop : prev[id]?.loop,
-          audioBlob: data.audioBlob !== undefined ? data.audioBlob : prev[id]?.audioBlob,
+          audioBlob: 'audioBlob' in data ? data.audioBlob : prev[id]?.audioBlob,
         },
       }
 
