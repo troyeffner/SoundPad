@@ -281,6 +281,16 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  // Keep AudioContext sink in sync with the selected output device
+  useEffect(() => {
+    if (!audioContextRef.current) return
+    if ('setSinkId' in audioContextRef.current) {
+      (audioContextRef.current as any).setSinkId(outputDeviceId || '').catch((err: unknown) => {
+        console.error('AudioContext.setSinkId failed:', err)
+      })
+    }
+  }, [outputDeviceId])
+
   useEffect(() => {
     // Load persisted output device
     const savedDevice = localStorage.getItem('sound-pad-mixer-output-device')
@@ -410,6 +420,12 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       try {
         const AudioContext = window.AudioContext || (window as any).webkitAudioContext
         audioContextRef.current = new AudioContext()
+        // Route the Web Audio graph to the selected output device
+        if (outputDeviceId && 'setSinkId' in audioContextRef.current) {
+          await (audioContextRef.current as any).setSinkId(outputDeviceId).catch((err: unknown) => {
+            console.error('AudioContext.setSinkId failed on create:', err)
+          })
+        }
       } catch (error) {
         console.error("Error creating AudioContext:", error)
         return
@@ -438,7 +454,9 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         const url = URL.createObjectURL(data.audioBlob)
         const echoAudio = new Audio(url)
         if (outputDeviceId && 'setSinkId' in HTMLAudioElement.prototype) {
-          try { await (echoAudio as any).setSinkId(outputDeviceId) } catch {}
+          try { await (echoAudio as any).setSinkId(outputDeviceId) } catch (err) {
+            console.error('echoAudio.setSinkId failed:', err)
+          }
         }
         resourceCountRef.current.objectUrls++
 
@@ -537,7 +555,9 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     audio.volume = Math.min(data.volume || 1, 1)
     audio.loop = data.loop || false
     if (outputDeviceId && 'setSinkId' in HTMLAudioElement.prototype) {
-      try { await (audio as any).setSinkId(outputDeviceId) } catch {}
+      try { await (audio as any).setSinkId(outputDeviceId) } catch (err) {
+        console.error('audio.setSinkId failed:', err)
+      }
     }
 
     if (needsWebAudio && audioContextRef.current && isNewAudio) {
