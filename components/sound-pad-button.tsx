@@ -76,11 +76,12 @@ export function SoundPadButton({ id, defaultColor, isEditMode, index, isMobile =
 
   return (
     <>
-      <div className={cn("relative", isMobile ? "w-16 h-16" : "w-28 h-28")}>
+      <div className={cn("relative", isMobile ? "w-16 h-16" : "w-32 h-32")}>
         <Button
           onClick={handleClick}
           className={cn(
-            "w-full h-full p-2 transition-all duration-200 group",
+            "w-full h-full transition-all duration-200 group",
+            isMobile ? "p-2" : "p-3",
             hasAudio
               ? getColorClasses(buttonColor, hasAudio, playing)
               : "bg-muted hover:bg-muted/80 text-muted-foreground border-2 border-border",
@@ -91,13 +92,13 @@ export function SoundPadButton({ id, defaultColor, isEditMode, index, isMobile =
         >
           <div className="flex flex-col items-center justify-center gap-1">
             {playing ? (
-              <Square className={cn(isMobile ? "w-4 h-4" : "w-6 h-6")} />
+              <Square className={cn(isMobile ? "w-4 h-4" : "w-7 h-7")} />
             ) : hasAudio ? (
-              <Play className={cn(isMobile ? "w-4 h-4" : "w-6 h-6")} />
+              <Play className={cn(isMobile ? "w-4 h-4" : "w-7 h-7")} />
             ) : (
-              <div className={cn(isMobile ? "w-4 h-4" : "w-6 h-6")} />
+              <div className={cn(isMobile ? "w-4 h-4" : "w-7 h-7")} />
             )}
-            <span className={cn("font-medium truncate max-w-full", isMobile ? "text-xs" : "text-xs")}>
+            <span className={cn("font-medium truncate max-w-full", isMobile ? "text-xs" : "text-sm")}>
               {data?.name || id}
             </span>
           </div>
